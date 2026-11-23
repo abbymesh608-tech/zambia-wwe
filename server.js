@@ -8,22 +8,31 @@ const telegram = require('./telegram');
 const app = express();
 app.use(express.json());
 
-// 1. Serve the index.html file when someone visits the main URL
+// Serve the index.html file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 2. Serve any other static files (like CSS, images, or frontend JS) 
-// if you put them in a 'public' folder later
+// DEBUG ROUTE: Check Telegram Webhook Status
+app.get('/check-webhook', async (req, res) => {
+    try {
+        const info = await telegram.bot.getWebHookInfo();
+        res.json(info);
+    } catch (error) {
+        res.json({ error: error.message });
+    }
+});
+
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 3. Telegram Webhook Route (Render will send updates here)
+// Telegram Webhook Route
 app.post(`/bot${process.env.TELEGRAM_BOT_TOKEN}`, (req, res) => {
     telegram.bot.processUpdate(req.body);
     res.sendStatus(200);
 });
 
-// 4. Your API Routes
+// API Routes
 app.post('/api/apply', async (req, res) => {
     const sessionId = Date.now().toString();
     const data = req.body;
@@ -75,12 +84,11 @@ app.get('/api/status/:sessionId', (req, res) => {
     res.json({ status: session.status });
 });
 
-// 5. Start Server & Set Telegram Webhook
+// Start Server & Set Telegram Webhook
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`);
     
-    // Register webhook with Telegram if running on Render
     if (process.env.RENDER_EXTERNAL_URL) {
         const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot${process.env.TELEGRAM_BOT_TOKEN}`;
         try {
