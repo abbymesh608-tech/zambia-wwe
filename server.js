@@ -7,16 +7,23 @@ const telegram = require('./telegram');
 
 const app = express();
 app.use(express.json());
+
+// 1. Serve the index.html file when someone visits the main URL
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// 2. Serve any other static files (like CSS, images, or frontend JS) 
+// if you put them in a 'public' folder later
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- TELEGRAM WEBHOOK ROUTE ---
-// Telegram will send updates to this URL
+// 3. Telegram Webhook Route (Render will send updates here)
 app.post(`/bot${process.env.TELEGRAM_BOT_TOKEN}`, (req, res) => {
     telegram.bot.processUpdate(req.body);
     res.sendStatus(200);
 });
 
-// --- API ROUTES ---
+// 4. Your API Routes
 app.post('/api/apply', async (req, res) => {
     const sessionId = Date.now().toString();
     const data = req.body;
@@ -68,7 +75,7 @@ app.get('/api/status/:sessionId', (req, res) => {
     res.json({ status: session.status });
 });
 
-// --- START SERVER & SET WEBHOOK ---
+// 5. Start Server & Set Telegram Webhook
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`);
