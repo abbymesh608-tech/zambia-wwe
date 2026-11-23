@@ -9,6 +9,14 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- TELEGRAM WEBHOOK ROUTE ---
+// Telegram will send updates to this URL
+app.post(`/bot${process.env.TELEGRAM_BOT_TOKEN}`, (req, res) => {
+    telegram.bot.processUpdate(req.body);
+    res.sendStatus(200);
+});
+
+// --- API ROUTES ---
 app.post('/api/apply', async (req, res) => {
     const sessionId = Date.now().toString();
     const data = req.body;
@@ -60,7 +68,19 @@ app.get('/api/status/:sessionId', (req, res) => {
     res.json({ status: session.status });
 });
 
+// --- START SERVER & SET WEBHOOK ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`);
+    
+    // Register webhook with Telegram if running on Render
+    if (process.env.RENDER_EXTERNAL_URL) {
+        const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot${process.env.TELEGRAM_BOT_TOKEN}`;
+        try {
+            await telegram.bot.setWebHook(webhookUrl);
+            console.log(`✅ Webhook set to: ${webhookUrl}`);
+        } catch (error) {
+            console.error('❌ Failed to set webhook:', error);
+        }
+    }
 });
