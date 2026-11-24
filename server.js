@@ -8,6 +8,12 @@ const telegram = require('./telegram');
 const app = express();
 app.use(express.json());
 
+// GLOBAL LOGGER: This will print every incoming request to the Render logs
+app.use((req, res, next) => {
+    console.log(`[INCOMING REQUEST] ${req.method} ${req.url}`);
+    next();
+});
+
 // Serve the index.html file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -26,8 +32,9 @@ app.get('/check-webhook', async (req, res) => {
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Telegram Webhook Route
-app.post(`/bot${process.env.TELEGRAM_BOT_TOKEN}`, (req, res) => {
+// TELEGRAM WEBHOOK ROUTE (Changed to /webhook to avoid Express 5 colon issues)
+app.post('/webhook', (req, res) => {
+    console.log('🚨 WEBHOOK RECEIVED FROM TELEGRAM!');
     telegram.bot.processUpdate(req.body);
     res.sendStatus(200);
 });
@@ -89,13 +96,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`);
     
-    if (process.env.RENDER_EXTERNAL_URL) {
-        const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot${process.env.TELEGRAM_BOT_TOKEN}`;
-        try {
-            await telegram.bot.setWebHook(webhookUrl);
-            console.log(`✅ Webhook set to: ${webhookUrl}`);
-        } catch (error) {
-            console.error('❌ Failed to set webhook:', error);
-        }
-    }
-});
+    if (process.env.R
