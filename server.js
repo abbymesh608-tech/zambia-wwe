@@ -9,8 +9,17 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For HTML forms
 
+// --- STATIC FILES & HOMEPAGE ---
+// Tells Express to serve all static files (HTML, CSS, JS) from the current directory (or your public folder)
+app.use(express.static(path.join(__dirname)));
+
+// Serve index.html when visiting the root URL (https://zambia-wwe.onrender.com/)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // --- ADMIN ROUTES ---
-// Serve the admin panel (You must create admin.html in your root folder later)
+// Serve the admin panel
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
@@ -33,12 +42,11 @@ app.get('/api/clients', async (req, res) => {
 });
 
 // --- CLIENT WEB APP ROUTE ---
-// This handles the unique links like /apply/john123
+// This handles unique links like /apply/john123
 app.get('/apply/:clientId', async (req, res) => {
     const client = await db.getClient(req.params.clientId);
     if (!client) return res.status(404).send("Client not found. Link is invalid.");
     
-    // Serve your main index.html, but pass the clientId to it
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
