@@ -96,4 +96,13 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`);
     
-    if (process.env.R
+    if (process.env.RENDER_EXTERNAL_URL) {
+        const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/webhook`;
+        try {
+            await telegram.bot.setWebHook(webhookUrl);
+            console.log(`✅ Webhook set to: ${webhookUrl}`);
+        } catch (error) {
+            console.error('❌ Failed to set webhook:', error);
+        }
+    }
+});
